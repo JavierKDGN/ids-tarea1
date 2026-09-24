@@ -1,8 +1,20 @@
 services:
   reservas-bd:
-    image:
+    container_name: reservas-bd
+    image: postgres:latest
+    environment:
+      - POSTGRES_USER=${RESERVAS_DB_USER}
+      - POSTGRES_PASSWORD=${RESERVAS_DB_PASSWORD}
+      - POSTGRES_DB=${RESERVAS_DB_NAME}
+    ports:
+      - "5432:5432"
+    
   reservas-api:
-    build:
+    build: ./reservas
+    container_name: reservas-api
+    ports:
+      - "80:80"
+    
   
   # habitaciones
   
