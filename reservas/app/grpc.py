@@ -119,8 +119,7 @@ class MockHabitacion:
 
 class GrpcHabitacionesClient:
     """Cliente gRPC real que consume el microservicio de Habitaciones."""
-
-    def __init__(self, host: str | None = None, timeout: float = 2.0):
+    def __init__(self, host: str | None = None, timeout: float | None = None):
         import os
         import grpc
         from .protos import habitaciones_pb2 as pb2
@@ -133,7 +132,8 @@ class GrpcHabitacionesClient:
         target = host or os.getenv("HABITACIONES_GRPC_HOST", "habitaciones-grpc:50051")
         self.channel = grpc.insecure_channel(target)
         self.stub = pb2_grpc.HabitacionesServiceStub(self.channel)
-        self.timeout = timeout
+        self.timeout = timeout if timeout is not None else float(os.getenv("HABITACIONES_GRPC_TIMEOUT", "2.0"))
+
 
     def _handle_rpc_error(self, exc):
         code = exc.code()
@@ -182,7 +182,7 @@ class GrpcHabitacionesClient:
                 fecha_fin=fin.isoformat(),
                 habitacion_id=habitacion_id
             )
-            resp = self.stub.AsignarHabitacion(req, timeout=self.timeout)
+            resp = self.stub.AsignarHabitacion(req, timeout=self.timeout, wait_for_ready=True)
 
             if resp.estado in (self._pb2.ASIGNADA, self._pb2.YA_ASIGNADA):
                 return resp.habitacion_id
