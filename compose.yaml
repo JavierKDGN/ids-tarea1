@@ -24,6 +24,7 @@ services:
       - RESERVAS_DB_URL=${RESERVAS_DB_URL}
       - HABITACIONES_GRPC_HOST=habitaciones-grpc:50051
       - API_KEY=${API_KEY}
+      - HABITACIONES_GRPC_TIMEOUT=${HABITACIONES_GRPC_TIMEOUT:-2.0}
 
     ports:
       - "80:80"

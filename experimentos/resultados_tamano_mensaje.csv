@@ -1,0 +1,5 @@
+n_habitaciones,protobuf_bytes,protobuf_gzip_bytes,json_bytes,json_gzip_bytes,ahorro_protobuf_vs_json_pct,ahorro_protobuf_vs_json_gzip_pct
+10,301,181,771,209,60.96,-44.02
+50,1561,411,3871,460,59.67,-239.35
+200,6370,1125,15608,1287,59.19,-394.95
+1000,32470,4439,78508,5563,58.64,-483.68

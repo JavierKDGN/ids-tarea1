@@ -159,42 +159,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
   /v1/reservas:
-    get:
-      tags:
-      - Reservas
-      summary: Listar Reservas
-      operationId: listar_reservas_v1_reservas_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                items:
-                  $ref: '#/components/schemas/ReservaResponse'
-                type: array
-                title: Response Listar Reservas V1 Reservas Get
-        '401':
-          description: API Key ausente o inválida.
-          headers:
-            WWW-Authenticate:
-              description: Esquema de autenticación solicitado.
-              schema:
-                type: string
-                enum:
-                - APIKey
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorHTTPResponse'
-        '503':
-          description: No se pudo completar la operación en la base de datos.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      security:
-      - APIKeyHeader: []
     post:
       tags:
       - Reservas
@@ -204,14 +168,26 @@ paths:
         el registro pendiente y devuelve 409. Ante un resultado incierto, intenta
         marcar la reserva para reparación y devuelve 503. Las fechas representan el
         intervalo [fecha_inicio, fecha_fin). Si habitacion_id se omite o es null,
-        se solicita asignación automática. Este POST no implementa Idempotency-Key.
+        se solicita asignación automática.
       operationId: crear_reserva_v1_reservas_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 255
+          - type: 'null'
+          title: Idempotency-Key
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/ReservaCreate'
-        required: true
       responses:
         '201':
           description: Successful Response
@@ -262,8 +238,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+    get:
+      tags:
+      - Reservas
+      summary: Listar Reservas
+      operationId: listar_reservas_v1_reservas_get
       security:
       - APIKeyHeader: []
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReservaResponse'
+                title: Response Listar Reservas V1 Reservas Get
+        '401':
+          description: API Key ausente o inválida.
+          headers:
+            WWW-Authenticate:
+              description: Esquema de autenticación solicitado.
+              schema:
+                type: string
+                enum:
+                - APIKey
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHTTPResponse'
+        '503':
+          description: No se pudo completar la operación en la base de datos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/reservas/{reserva_id}:
     get:
       tags:
@@ -736,6 +746,15 @@ components:
           title: Id
         estado:
           $ref: '#/components/schemas/EstadoReserva'
+        _links:
+          additionalProperties:
+            additionalProperties:
+              type: string
+            type: object
+          type: object
+          title: Links
+          description: Enlaces de acciones disponibles según el estado de la reserva.
+          readOnly: true
       type: object
       required:
       - fecha_inicio
@@ -743,6 +762,7 @@ components:
       - huesped_id
       - id
       - estado
+      - _links
       title: ReservaResponse
     ValidationError:
       properties:

@@ -58,13 +58,14 @@ class ReservaCRUD:
 
         return ReservaResponse.model_validate(reserva)
 
-    def create_reserva(self, reserva: ReservaCreate):
+    def create_reserva(self, reserva: ReservaCreate, idempotency_key: str | None = None):
         datos = reserva.model_dump()
         datos.pop("habitacion_id", None)
         new_reserva = Reserva(
             **datos,
             estado=EstadoReserva.PENDIENTE,
-            habitacion_id=None
+            habitacion_id=None,
+            idempotency_key=idempotency_key
         )
         self.db.add(new_reserva)
         return self._guardar(new_reserva)
@@ -104,3 +105,7 @@ class ReservaCRUD:
             self.db.rollback()
             raise
         return True
+    
+    def get_reserva_by_idempotency_key(self, idempotency_key: str) -> Reserva | None:
+        query = select(Reserva).where(Reserva.idempotency_key == idempotency_key)
+        return self.db.scalars(query).first()

@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Protocol
 
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import Session
 
 from .crud import HuespedCRUD, ReservaCRUD
@@ -25,7 +25,9 @@ def crear_reserva(
     db: Session,
     datos: ReservaCreate,
     habitaciones,
+    idempotency_key: str | None = None,
 ) -> ReservaResponse:
+    
     if datos.fecha_fin <= datos.fecha_inicio:
         raise DatosInvalidos(
             "La salida debe ser posterior a la entrada"
@@ -35,7 +37,29 @@ def crear_reserva(
         raise HuespedNoExiste(datos.huesped_id)
 
     crud = ReservaCRUD(db)
-    pendiente = crud.create_reserva(datos)
+    
+    # Reintento REST: devolver la reserva ya creada
+    if idempotency_key:
+        existente = crud.get_reserva_by_idempotency_key(idempotency_key)
+
+        if existente is not None:
+            return ReservaResponse.model_validate(existente)    
+    
+    try:
+        pendiente = crud.create_reserva(
+            datos,
+            idempotency_key=idempotency_key
+        )
+        
+    except IntegrityError:
+        
+        if idempotency_key:
+            existente = crud.get_reserva_by_idempotency_key(idempotency_key)
+
+            if existente is not None:
+                return ReservaResponse.model_validate(existente)
+
+        raise ReservaIncierta()
 
     try:
         habitacion_id = habitaciones.reservar(
