@@ -22,6 +22,6 @@ class SinDisponibilidad(ErrorReserva):
     pass
 
 class ReservaIncierta(ErrorReserva):
-    def __init__(self, reserva_id: int):
+    def __init__(self, reserva_id: int | None = None):
         self.reserva_id = reserva_id
         super().__init__(f"No se conoce el resultado de la reserva {reserva_id}")

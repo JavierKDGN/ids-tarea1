@@ -345,6 +345,21 @@ components:
       - fecha_fin
       - huesped_id
       title: ReservaCreate
+
+    ReservaLink:
+      properties:
+        href:
+          type: string
+          title: Href
+        method:
+          type: string
+          title: Method
+      type: object
+      required:
+        - href
+        - method
+    title: ReservaLink
+
     ReservaResponse:
       properties:
         fecha_inicio:
@@ -368,6 +383,12 @@ components:
           title: Id
         estado:
           $ref: '#/components/schemas/EstadoReserva'
+        _links:
+          additionalProperties:
+          $ref: '#/components/schemas/ReservaLink'
+          type: object
+          title: Links
+          readOnly: true
       type: object
       required:
       - fecha_inicio
@@ -375,7 +396,9 @@ components:
       - huesped_id
       - id
       - estado
+      - _links
       title: ReservaResponse
+      
     ValidationError:
       properties:
         loc:

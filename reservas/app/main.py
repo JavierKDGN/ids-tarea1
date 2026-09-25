@@ -4,7 +4,7 @@ from typing import List
 from contextlib import asynccontextmanager
 from secrets import compare_digest
 
-from fastapi import FastAPI, Depends, HTTPException, status, Query, Request, Response
+from fastapi import FastAPI, Depends, HTTPException, status, Query, Request, Response, Header
 from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
 from sqlalchemy.exc import SQLAlchemyError
@@ -169,9 +169,14 @@ def consultar_huesped(huesped_id: int, db: Session = Depends(get_db)):
 def crear_reserva(
     reserva_in: schema.ReservaCreate,
     db: Session = Depends(get_db),
-    habitaciones: GrpcHabitacionesClient = Depends(get_habitaciones_client)
+    habitaciones: GrpcHabitacionesClient = Depends(get_habitaciones_client),
+    idempotency_key: str | None = Header(
+        default=None,
+        alias="Idempotency-Key",
+        max_length=255
+    )
 ):
-    return services.crear_reserva(db, reserva_in, habitaciones)
+    return services.crear_reserva(db, reserva_in, habitaciones, idempotency_key=idempotency_key)
 
 @app.get(
     "/v1/reservas",

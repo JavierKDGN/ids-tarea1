@@ -31,6 +31,20 @@ class Reserva(Base):
     fecha_fin: Mapped[date] = mapped_column(nullable=False)
     estado: Mapped[EstadoReserva] = mapped_column(Enum(EstadoReserva), nullable=False)
     habitacion_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    
-    huesped_id: Mapped[int] = mapped_column(ForeignKey("huespedes.id"), nullable=False)
-    huesped: Mapped["Huesped"] = relationship(back_populates="reservas")
+
+    #se agrega este campo
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(255),
+        unique=True,
+        index=True,
+        nullable=True
+    )
+
+    huesped_id: Mapped[int] = mapped_column(
+        ForeignKey("huespedes.id"),
+        nullable=False
+    )
+
+    huesped: Mapped["Huesped"] = relationship(
+        back_populates="reservas"
+    )
