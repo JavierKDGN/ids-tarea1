@@ -1,0 +1,119 @@
+syntax = "proto3";
+
+package hotel.habitaciones.v1;
+
+// ==========================================
+// Servicio de Habitaciones (gRPC Interno)
+// ==========================================
+service HabitacionesService {
+  // Gestión de Catálogo
+  rpc CrearHabitacion (CrearHabitacionRequest) returns (CrearHabitacionResponse);
+  rpc ListarHabitaciones (ListarHabitacionesRequest) returns (ListarHabitacionesResponse);
+
+  // Consultas de Disponibilidad
+  rpc ConsultarDisponibilidad (ConsultarDisponibilidadRequest) returns (ConsultarDisponibilidadResponse);
+  rpc ListarDisponibilidad (ListarDisponibilidadRequest) returns (ListarDisponibilidadResponse);
+
+  // Operaciones de Reserva (Idempotentes)
+  rpc AsignarHabitacion (AsignarHabitacionRequest) returns (AsignarHabitacionResponse);
+  rpc LiberarHabitacion (LiberarHabitacionRequest) returns (LiberarHabitacionResponse);
+
+  // Verificación para resiliencia ante fallos de red (T7)
+  rpc ConsultarAsignacion (ConsultarAsignacionRequest) returns (ConsultarAsignacionResponse);
+}
+
+// ================= Mensajes de Catálogo =================
+
+message CrearHabitacionRequest {
+  string numero = 1;         // Ej: "101", "205"
+  string tipo = 2;           // Ej: "Simple", "Doble", "Suite"
+  double precio_noche = 3;   // Tarifa por noche
+}
+
+message CrearHabitacionResponse {
+  bool exito = 1;
+  int32 habitacion_id = 2;
+  string mensaje = 3;
+}
+
+message ListarHabitacionesRequest {}
+
+message HabitacionInfo {
+  int32 id = 1;
+  string numero = 2;
+  string tipo = 3;
+  double precio_noche = 4;
+}
+
+message ListarHabitacionesResponse {
+  repeated HabitacionInfo habitaciones = 1;
+}
+
+// ================= Mensajes de Disponibilidad =================
+
+message ConsultarDisponibilidadRequest {
+  string fecha_inicio = 1; // YYYY-MM-DD (check-in)
+  string fecha_fin = 2;    // YYYY-MM-DD (check-out, intervalo semiabierto [inicio, fin))
+}
+
+message ConsultarDisponibilidadResponse {
+  repeated HabitacionInfo habitaciones_disponibles = 1;
+}
+
+message ListarDisponibilidadRequest {
+  string fecha = 1; // YYYY-MM-DD
+}
+
+message ListarDisponibilidadResponse {
+  string fecha = 1;
+  int32 total_habitaciones = 2;
+  int32 habitaciones_libres = 3;
+  repeated HabitacionInfo libres = 4;
+}
+
+// ================= Mensajes de Asignación =================
+
+message AsignarHabitacionRequest {
+  int32 reserva_id = 1;             // ID único de la reserva (clave de idempotencia)
+  optional int32 habitacion_id = 2; // Si se omite o es 0, asigna automáticamente la primera disponible
+  string fecha_inicio = 3;          // YYYY-MM-DD (check-in)
+  string fecha_fin = 4;             // YYYY-MM-DD (check-out)
+}
+
+enum EstadoResultadoAsignacion {
+  ESTADO_ASIGNACION_DESCONOCIDO = 0;
+  ASIGNADA = 1;                     // Asignación exitosa
+  YA_ASIGNADA = 2;                  // Idempotencia: ya estaba asignada previamente a esta reserva
+  NO_DISPONIBLE = 3;                // Sin disponibilidad en esas fechas
+  DATOS_INVALIDOS = 4;              // Error en fechas (ej: fin <= inicio)
+}
+
+message AsignarHabitacionResponse {
+  EstadoResultadoAsignacion estado = 1;
+  int32 habitacion_id = 2;          // ID de la habitación asignada (0 si no se asignó)
+  string mensaje = 3;
+}
+
+// ================= Mensajes de Liberación =================
+
+message LiberarHabitacionRequest {
+  int32 reserva_id = 1;
+}
+
+message LiberarHabitacionResponse {
+  bool liberada = 1;                // true si se liberó o si ya estaba libre
+  string mensaje = 2;
+}
+
+// ================= Mensajes de Verificación de Estado =================
+
+message ConsultarAsignacionRequest {
+  int32 reserva_id = 1;
+}
+
+message ConsultarAsignacionResponse {
+  bool asignada = 1;
+  optional int32 habitacion_id = 2;
+  string fecha_inicio = 3;
+  string fecha_fin = 4;
+}

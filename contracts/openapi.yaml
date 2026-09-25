@@ -1,0 +1,410 @@
+openapi: 3.1.0
+info:
+  title: Sistema de Reservas - Cadena Hotelera Costanera
+  description: API REST pública (v1) para gestión de huéspedes y reservas, integrada
+    internamente vía gRPC con el Sistema de Habitaciones.
+  version: 1.0.0
+paths:
+  /:
+    get:
+      tags:
+      - Salud
+      summary: Health Check
+      operationId: health_check__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /v1/huespedes:
+    get:
+      tags:
+      - Huéspedes
+      summary: Listar Huespedes
+      operationId: listar_huespedes_v1_huespedes_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/HuespedResponse'
+                type: array
+                title: Response Listar Huespedes V1 Huespedes Get
+      security:
+      - APIKeyHeader: []
+    post:
+      tags:
+      - Huéspedes
+      summary: Registrar Huesped
+      operationId: registrar_huesped_v1_huespedes_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HuespedCreate'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HuespedResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyHeader: []
+  /v1/huespedes/{huesped_id}:
+    get:
+      tags:
+      - Huéspedes
+      summary: Consultar Huesped
+      operationId: consultar_huesped_v1_huespedes__huesped_id__get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: huesped_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Huesped Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HuespedResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/reservas:
+    get:
+      tags:
+      - Reservas
+      summary: Listar Reservas
+      operationId: listar_reservas_v1_reservas_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/ReservaResponse'
+                type: array
+                title: Response Listar Reservas V1 Reservas Get
+      security:
+      - APIKeyHeader: []
+    post:
+      tags:
+      - Reservas
+      summary: Crear Reserva
+      operationId: crear_reserva_v1_reservas_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReservaCreate'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservaResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyHeader: []
+  /v1/reservas/{reserva_id}:
+    get:
+      tags:
+      - Reservas
+      summary: Consultar Reserva
+      operationId: consultar_reserva_v1_reservas__reserva_id__get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: reserva_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Reserva Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservaResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Reservas
+      summary: Cancelar Reserva
+      description: Revertir / cancelar una estadía y liberar la habitación en Habitaciones
+        vía gRPC.
+      operationId: cancelar_reserva_v1_reservas__reserva_id__delete
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: reserva_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Reserva Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservaResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/reservas/{reserva_id}/resolver:
+    post:
+      tags:
+      - Reservas
+      summary: Resolver Reserva En Reparacion
+      description: 'Resuelve una reserva en estado ''reparacion'' (Saga Compensation
+        / Rollback Cascade).
+
+        Verifica con Habitaciones vía gRPC si la habitación quedó asignada y, de ser
+        así,
+
+        la libera para evitar bloqueos huérfanos, revirtiendo la reserva local.'
+      operationId: resolver_reserva_en_reparacion_v1_reservas__reserva_id__resolver_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: reserva_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Reserva Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/disponibilidad:
+    get:
+      tags:
+      - Disponibilidad
+      summary: Consultar Disponibilidad
+      operationId: consultar_disponibilidad_v1_disponibilidad_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: fecha_inicio
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          description: Fecha de check-in (YYYY-MM-DD)
+          title: Fecha Inicio
+        description: Fecha de check-in (YYYY-MM-DD)
+      - name: fecha_fin
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          description: Fecha de check-out (YYYY-MM-DD)
+          title: Fecha Fin
+        description: Fecha de check-out (YYYY-MM-DD)
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    EstadoReserva:
+      type: string
+      enum:
+      - pendiente
+      - confirmada
+      - reparacion
+      - cancelacion_solicitada
+      - cancelada
+      title: EstadoReserva
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HuespedCreate:
+      properties:
+        nombre:
+          type: string
+          title: Nombre
+        telefono:
+          type: string
+          title: Telefono
+        email:
+          type: string
+          title: Email
+      type: object
+      required:
+      - nombre
+      - telefono
+      - email
+      title: HuespedCreate
+    HuespedResponse:
+      properties:
+        nombre:
+          type: string
+          title: Nombre
+        telefono:
+          type: string
+          title: Telefono
+        email:
+          type: string
+          title: Email
+        id:
+          type: integer
+          title: Id
+      type: object
+      required:
+      - nombre
+      - telefono
+      - email
+      - id
+      title: HuespedResponse
+    ReservaCreate:
+      properties:
+        fecha_inicio:
+          type: string
+          format: date
+          title: Fecha Inicio
+        fecha_fin:
+          type: string
+          format: date
+          title: Fecha Fin
+        huesped_id:
+          type: integer
+          title: Huesped Id
+        habitacion_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Habitacion Id
+      type: object
+      required:
+      - fecha_inicio
+      - fecha_fin
+      - huesped_id
+      title: ReservaCreate
+    ReservaResponse:
+      properties:
+        fecha_inicio:
+          type: string
+          format: date
+          title: Fecha Inicio
+        fecha_fin:
+          type: string
+          format: date
+          title: Fecha Fin
+        huesped_id:
+          type: integer
+          title: Huesped Id
+        habitacion_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Habitacion Id
+        id:
+          type: integer
+          title: Id
+        estado:
+          $ref: '#/components/schemas/EstadoReserva'
+      type: object
+      required:
+      - fecha_inicio
+      - fecha_fin
+      - huesped_id
+      - id
+      - estado
+      title: ReservaResponse
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+  securitySchemes:
+    APIKeyHeader:
+      type: apiKey
+      description: API Key para autorización de endpoints /v1
+      in: header
+      name: X-API-Key
