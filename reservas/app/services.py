@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from .crud import HuespedCRUD, ReservaCRUD
 from .models import EstadoReserva, Reserva
 from .schema import ReservaCreate, ReservaResponse
-from .errors import *
+from .error_models import *
 
 def _marcar_reparacion(db: Session, reserva_id: int) -> None:
     try:
