@@ -64,7 +64,7 @@ class ReservaCRUD:
             self.db.rollback()
             return None     
 
-    def get_reserva_by_id(self, reserva_id: int):
+    def get_reserva_by_id(self, reserva_id: int) -> Reserva | None:
         return self.db.get(Reserva, reserva_id)
 
     def get_reservas(self):
