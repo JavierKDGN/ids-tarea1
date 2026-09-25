@@ -1,10 +1,52 @@
 services:
   reservas-bd:
-    image:
+    container_name: reservas-bd
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${RESERVAS_DB_USER}
+      - POSTGRES_PASSWORD=${RESERVAS_DB_PASSWORD}
+      - POSTGRES_DB=${RESERVAS_DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - reservas-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${RESERVAS_DB_USER} -d ${RESERVAS_DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    
   reservas-api:
-    build:
-  
-  # habitaciones
-  
-  
-  
+    build: ./reservas
+    container_name: reservas-api
+    environment:
+      - RESERVAS_DB_URL=${RESERVAS_DB_URL}
+      - HABITACIONES_GRPC_HOST=habitaciones-grpc:50051
+      - API_KEY=${API_KEY}
+      - HABITACIONES_GRPC_TIMEOUT=${HABITACIONES_GRPC_TIMEOUT:-2.0}
+
+    ports:
+      - "80:80"
+    depends_on:
+      reservas-bd:
+        condition: service_healthy
+      habitaciones-grpc:
+        condition: service_started
+    restart: unless-stopped
+
+  habitaciones-grpc:
+    build: ./habitaciones
+    container_name: habitaciones-grpc
+    environment:
+      - PORT=50051
+      - HABITACIONES_DB_URL=sqlite:////data/habitaciones.db
+    ports:
+      - "50051:50051"
+    volumes:
+      - habitaciones-data:/data
+    restart: unless-stopped
+
+volumes:
+  reservas-db-data:
+  habitaciones-data:

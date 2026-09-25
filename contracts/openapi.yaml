@@ -1,0 +1,798 @@
+openapi: 3.1.0
+info:
+  title: Sistema de Reservas - Cadena Hotelera Costanera
+  description: API REST pública (v1) para gestión de huéspedes y reservas, integrada
+    internamente vía gRPC con el Sistema de Habitaciones.
+  version: 1.0.0
+paths:
+  /:
+    get:
+      tags:
+      - Salud
+      summary: Health Check
+      operationId: health_check__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /v1/huespedes:
+    get:
+      tags:
+      - Huéspedes
+      summary: Listar Huespedes
+      operationId: listar_huespedes_v1_huespedes_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/HuespedResponse'
+                type: array
+                title: Response Listar Huespedes V1 Huespedes Get
+        '401':
+          description: API Key ausente o inválida.
+          headers:
+            WWW-Authenticate:
+              description: Esquema de autenticación solicitado.
+              schema:
+                type: string
+                enum:
+                - APIKey
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHTTPResponse'
+        '503':
+          description: No se pudo completar la operación en la base de datos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - APIKeyHeader: []
+    post:
+      tags:
+      - Huéspedes
+      summary: Registrar Huesped
+      operationId: registrar_huesped_v1_huespedes_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HuespedCreate'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HuespedResponse'
+        '401':
+          description: API Key ausente o inválida.
+          headers:
+            WWW-Authenticate:
+              description: Esquema de autenticación solicitado.
+              schema:
+                type: string
+                enum:
+                - APIKey
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHTTPResponse'
+        '503':
+          description: No se pudo completar la operación en la base de datos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Ya existe un huesped con ese correo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHTTPResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyHeader: []
+  /v1/huespedes/{huesped_id}:
+    get:
+      tags:
+      - Huéspedes
+      summary: Consultar Huesped
+      operationId: consultar_huesped_v1_huespedes__huesped_id__get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: huesped_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Huesped Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HuespedResponse'
+        '401':
+          description: API Key ausente o inválida.
+          headers:
+            WWW-Authenticate:
+              description: Esquema de autenticación solicitado.
+              schema:
+                type: string
+                enum:
+                - APIKey
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHTTPResponse'
+        '503':
+          description: No se pudo completar la operación en la base de datos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: El huésped solicitado no existe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/reservas:
+    post:
+      tags:
+      - Reservas
+      summary: Crear una reserva
+      description: Registra una reserva pendiente y solicita la asignación a Habitaciones
+        por gRPC. Devuelve 201 al confirmar. Si no hay disponibilidad, intenta eliminar
+        el registro pendiente y devuelve 409. Ante un resultado incierto, intenta
+        marcar la reserva para reparación y devuelve 503. Las fechas representan el
+        intervalo [fecha_inicio, fecha_fin). Si habitacion_id se omite o es null,
+        se solicita asignación automática.
+      operationId: crear_reserva_v1_reservas_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 255
+          - type: 'null'
+          title: Idempotency-Key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReservaCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservaResponse'
+        '401':
+          description: API Key ausente o inválida.
+          headers:
+            WWW-Authenticate:
+              description: Esquema de autenticación solicitado.
+              schema:
+                type: string
+                enum:
+                - APIKey
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHTTPResponse'
+        '404':
+          description: El huésped no existe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: No hay habitación disponible para la estadía
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Datos inválidos. Los errores de validación de FastAPI usan
+            detail; los errores de negocio, como un intervalo inválido, usan error.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: '#/components/schemas/ErrorValidacionResponse'
+                - $ref: '#/components/schemas/ErrorResponse'
+                title: Response 422 Crear Reserva V1 Reservas Post
+        '503':
+          description: Fallo de persistencia o resultado incierto de la operación.
+            Si el tipo es ReservaIncierta, se incluye reserva_id. Esta respuesta no
+            garantiza que la operación remota no haya ocurrido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      tags:
+      - Reservas
+      summary: Listar Reservas
+      operationId: listar_reservas_v1_reservas_get
+      security:
+      - APIKeyHeader: []
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReservaResponse'
+                title: Response Listar Reservas V1 Reservas Get
+        '401':
+          description: API Key ausente o inválida.
+          headers:
+            WWW-Authenticate:
+              description: Esquema de autenticación solicitado.
+              schema:
+                type: string
+                enum:
+                - APIKey
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHTTPResponse'
+        '503':
+          description: No se pudo completar la operación en la base de datos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/reservas/{reserva_id}:
+    get:
+      tags:
+      - Reservas
+      summary: Consultar Reserva
+      operationId: consultar_reserva_v1_reservas__reserva_id__get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: reserva_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Reserva Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservaResponse'
+        '401':
+          description: API Key ausente o inválida.
+          headers:
+            WWW-Authenticate:
+              description: Esquema de autenticación solicitado.
+              schema:
+                type: string
+                enum:
+                - APIKey
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHTTPResponse'
+        '503':
+          description: No se pudo completar la operación en la base de datos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La reserva solicitada no existe.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Reservas
+      summary: Cancelar una reserva
+      description: Cancela una reserva confirmada y libera su asignación mediante
+        gRPC. Conserva el registro local. Si la reserva ya está cancelada, devuelve
+        200 sin repetir la liberación. Otros estados producen 409.
+      operationId: cancelar_reserva_v1_reservas__reserva_id__delete
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: reserva_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Reserva Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservaResponse'
+        '401':
+          description: API Key ausente o inválida.
+          headers:
+            WWW-Authenticate:
+              description: Esquema de autenticación solicitado.
+              schema:
+                type: string
+                enum:
+                - APIKey
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHTTPResponse'
+        '404':
+          description: La reserva solicitada no existe.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: El estado de la reserva impide realizar la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Fallo de persistencia o resultado incierto de la operación.
+            Si el tipo es ReservaIncierta, se incluye reserva_id. Esta respuesta no
+            garantiza que la operación remota no haya ocurrido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/reservas/{reserva_id}/resolver:
+    post:
+      tags:
+      - Reservas
+      summary: Resolver una reserva en pendiente o incierta
+      description: Consulta la asignación remota y la libera si corresponde. Si la
+        reserva local no tiene habitacion_id, elimina el registro; si tiene habitacion_id,
+        termina en estado cancelada. Una reserva confirmada produce 409. Una reserva
+        ya cancelada se devuelve sin cambios con accion cancelada.
+      operationId: resolver_reserva_en_reparacion_v1_reservas__reserva_id__resolver_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: reserva_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Reserva Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: API Key ausente o inválida.
+          headers:
+            WWW-Authenticate:
+              description: Esquema de autenticación solicitado.
+              schema:
+                type: string
+                enum:
+                - APIKey
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHTTPResponse'
+        '404':
+          description: La reserva solicitada no existe.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: El estado de la reserva impide realizar la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Fallo de persistencia o resultado incierto de la operación.
+            Si el tipo es ReservaIncierta, se incluye reserva_id. Esta respuesta no
+            garantiza que la operación remota no haya ocurrido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/disponibilidad:
+    get:
+      tags:
+      - Disponibilidad
+      summary: Consultar disponibilidad
+      description: Consulta Habitaciones por gRPC para el intervalo [fecha_inicio,
+        fecha_fin). La salida debe ser posterior a la entrada. Esta consulta no reserva
+        habitaciones. Si no hay disponibilidad, devuelve 200 con una lista vacía.
+      operationId: consultar_disponibilidad_v1_disponibilidad_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: fecha_inicio
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          description: Fecha de check-in (YYYY-MM-DD)
+          title: Fecha Inicio
+        description: Fecha de check-in (YYYY-MM-DD)
+      - name: fecha_fin
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          description: Fecha de check-out (YYYY-MM-DD)
+          title: Fecha Fin
+        description: Fecha de check-out (YYYY-MM-DD)
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisponibilidadResponse'
+        '401':
+          description: API Key ausente o inválida.
+          headers:
+            WWW-Authenticate:
+              description: Esquema de autenticación solicitado.
+              schema:
+                type: string
+                enum:
+                - APIKey
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHTTPResponse'
+        '422':
+          description: Datos inválidos. Los errores de validación de FastAPI usan
+            detail; los errores de negocio, como un intervalo inválido, usan error.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: '#/components/schemas/ErrorValidacionResponse'
+                - $ref: '#/components/schemas/ErrorResponse'
+                title: Response 422 Consultar Disponibilidad V1 Disponibilidad Get
+        '503':
+          description: No fue posible comunicarse con Habitaciones.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    DisponibilidadResponse:
+      properties:
+        fecha_inicio:
+          type: string
+          format: date
+          title: Fecha Inicio
+        fecha_fin:
+          type: string
+          format: date
+          title: Fecha Fin
+        total_disponibles:
+          type: integer
+          title: Total Disponibles
+        habitaciones:
+          items:
+            $ref: '#/components/schemas/HabitacionDisponible'
+          type: array
+          title: Habitaciones
+      type: object
+      required:
+      - fecha_inicio
+      - fecha_fin
+      - total_disponibles
+      - habitaciones
+      title: DisponibilidadResponse
+    ErrorDetalle:
+      properties:
+        tipo:
+          type: string
+          title: Tipo
+        mensaje:
+          type: string
+          title: Mensaje
+        reserva_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Reserva Id
+      type: object
+      required:
+      - tipo
+      - mensaje
+      title: ErrorDetalle
+    ErrorHTTPResponse:
+      properties:
+        detail:
+          type: string
+          title: Detail
+      type: object
+      required:
+      - detail
+      title: ErrorHTTPResponse
+    ErrorResponse:
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorDetalle'
+      type: object
+      required:
+      - error
+      title: ErrorResponse
+    ErrorValidacionDetalle:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Loc
+        msg:
+          type: string
+          title: Msg
+        type:
+          type: string
+          title: Type
+        input:
+          title: Input
+        ctx:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Ctx
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ErrorValidacionDetalle
+    ErrorValidacionResponse:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ErrorValidacionDetalle'
+          type: array
+          title: Detail
+      type: object
+      required:
+      - detail
+      title: ErrorValidacionResponse
+    EstadoReserva:
+      type: string
+      enum:
+      - pendiente
+      - confirmada
+      - reparacion
+      - cancelacion_solicitada
+      - cancelada
+      title: EstadoReserva
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HabitacionDisponible:
+      properties:
+        id:
+          type: integer
+          title: Id
+        numero:
+          type: string
+          title: Numero
+        tipo:
+          type: string
+          title: Tipo
+        precio_noche:
+          type: number
+          title: Precio Noche
+      type: object
+      required:
+      - id
+      - numero
+      - tipo
+      - precio_noche
+      title: HabitacionDisponible
+    HuespedCreate:
+      properties:
+        nombre:
+          type: string
+          title: Nombre
+        telefono:
+          type: string
+          title: Telefono
+        email:
+          type: string
+          title: Email
+      type: object
+      required:
+      - nombre
+      - telefono
+      - email
+      title: HuespedCreate
+    HuespedResponse:
+      properties:
+        nombre:
+          type: string
+          title: Nombre
+        telefono:
+          type: string
+          title: Telefono
+        email:
+          type: string
+          title: Email
+        id:
+          type: integer
+          title: Id
+      type: object
+      required:
+      - nombre
+      - telefono
+      - email
+      - id
+      title: HuespedResponse
+    ReservaCreate:
+      properties:
+        fecha_inicio:
+          type: string
+          format: date
+          title: Fecha Inicio
+        fecha_fin:
+          type: string
+          format: date
+          title: Fecha Fin
+        huesped_id:
+          type: integer
+          title: Huesped Id
+        habitacion_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Habitacion Id
+      type: object
+      required:
+      - fecha_inicio
+      - fecha_fin
+      - huesped_id
+      title: ReservaCreate
+    ReservaResponse:
+      properties:
+        fecha_inicio:
+          type: string
+          format: date
+          title: Fecha Inicio
+        fecha_fin:
+          type: string
+          format: date
+          title: Fecha Fin
+        huesped_id:
+          type: integer
+          title: Huesped Id
+        habitacion_id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Habitacion Id
+        id:
+          type: integer
+          title: Id
+        estado:
+          $ref: '#/components/schemas/EstadoReserva'
+        _links:
+          additionalProperties:
+            additionalProperties:
+              type: string
+            type: object
+          type: object
+          title: Links
+          description: Enlaces de acciones disponibles según el estado de la reserva.
+          readOnly: true
+      type: object
+      required:
+      - fecha_inicio
+      - fecha_fin
+      - huesped_id
+      - id
+      - estado
+      - _links
+      title: ReservaResponse
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+  securitySchemes:
+    APIKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
