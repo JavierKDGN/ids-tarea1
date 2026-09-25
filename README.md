@@ -1,92 +1,64 @@
-# Sistema de Integración Hotelera — Cadena Hotelera Costanera (Forma H)
+# Integración de Reservas y Habitaciones  — Cadena Hotelera Costanera (Forma H)
 
 Solución de integración de sistemas desarrollada para el **Encargo de Unidad 1** de la asignatura *Integración de Sistemas* (Ingeniería Civil Informática, Universidad de Concepción).
 
 ---
 
-## 1. Arquitectura de Referencia: "REST hacia afuera, gRPC hacia adentro"
+## Organizacion
 
-El sistema resuelve la problemática de integración entre dos dominios que operaban de forma desacoplada:
 
 ```
-  [ Clientes Externos / Swagger UI / Web ]
-                     │
-                     │  HTTP REST (JSON) + Autenticación X-API-Key
-                     ▼
-         ┌───────────────────────┐
-         │     reservas-api      │ ────▶ [ reservas-bd (PostgreSQL) ]
-         │      (Puerto 80)      │
-         └───────────────────────┘
-                     │
-                     │  gRPC / Protocol Buffers (Alta velocidad, bajo overhead)
-                     ▼
-         ┌───────────────────────┐
-         │   habitaciones-grpc   │ ────▶ [ habitaciones.db (SQLite) ]
-         │    (Puerto 50051)     │
-         └───────────────────────┘
+Cliente -> REST /v1 (reservas-api) -> PostgreSQL (reservas-bd)
+                    |
+                    +-> gRPC (habitaciones-grpc) -> SQLite
 ```
 
 * **Servicio de Reservas (API REST Pública - `/v1`):** Punto de entrada expuesto hacia el exterior. Administra huéspedes y estadías, persistiendo en su propia base de datos PostgreSQL.
 * **Servicio de Habitaciones (Microservicio Interno gRPC):** Fuente de verdad sobre el inventario y disponibilidad de habitaciones por fecha. Utiliza SQLite y expone un contrato binario tipado en el puerto `50051`.
-* **Aislamiento de Almacenes (T5):** Ningún servicio accede a la base de datos del otro; toda consulta o bloqueo se orquesta mediante contratos formales.
 
----
+Ningún servicio accede a la base de datos del otro; toda consulta o bloqueo se orquesta mediante contratos formales.
 
-## 2. Contratos Versionados (T3)
+| Carpeta o archivo | Contenido |
+| --- | --- |
+| `reservas/` | API FastAPI, cliente gRPC y persistencia de reservas |
+| `habitaciones/` | Servidor gRPC, persistencia de habitaciones y cliente administrativo |
+| `contracts/openapi.yaml` | Contrato REST versionado |
+| `contracts/habitaciones.proto` | Contrato gRPC, paquete `hotel.habitaciones.v1` |
+| `compose.yaml` | Servicios y volúmenes de Docker |
+| `decisiones.md` | Registro de decisiones de diseño |
 
-* **Contrato gRPC:** [`contracts/habitaciones.proto`](contracts/habitaciones.proto)
-  * Define los procedimientos `CrearHabitacion`, `ListarHabitaciones`, `ConsultarDisponibilidad`, `ListarDisponibilidad`, `AsignarHabitacion`, `LiberarHabitacion` y `ConsultarAsignacion`.
-  * Maneja intervalos de noches semiabiertos `[fecha_inicio, fecha_fin)` y asignación idempotente por `reserva_id`.
-* **Contrato REST:** [`contracts/openapi.yaml`](contracts/openapi.yaml)
-  * Especificación OpenAPI 3.1 con los endpoints `/v1/huespedes`, `/v1/reservas` y `/v1/disponibilidad`.
-
----
-
-## 3. Puesta en Marcha con Docker (T1)
+## Setup
 
 ### Requisitos Previos
 
 * Docker y Docker Compose instalados.
 
-### 1. Variables de Entorno
-
-Crea tu archivo `.env` a partir de la plantilla:
+Si todavía no existe `.env` crearlo desde el ejemplo:
 
 ```bash
 cp .env.example .env
 ```
 
-*(Valores por defecto preconfigurados: credenciales de PostgreSQL, ruta de SQLite y `API_KEY=hotel-secret-key-2026`).*
-
-### 2. Levantar el Ecosistema Completo
-
-Ejecuta un único comando para compilar y encender los contenedores:
+(Compose utiliza `.env`, no `.env.example`. Revisar `RESERVAS_DB_USER`, `RESERVAS_DB_PASSWORD`, `RESERVAS_DB_NAME`, `RESERVAS_DB_URL` y `API_KEY`. La URL debe contener las credenciales reales y usar `reservas-bd` como servidor dentro de Docker. Las credenciales del ejemplo son para desarrollo local. Cambiar estas variables no modifica las credenciales de una base PostgreSQL previamente inicializada en el volumen.)
 
 ```bash
 docker compose up -d --build
-```
-
-### 3. Verificar Estado de los Contenedores
-
-```bash
 docker compose ps
+docker compose logs --tail=30 reservas-api
 ```
 
-Deberás ver los 3 servicios activos:
+Se esperan tres servicios activos: `reservas-api` en el puerto 80, `habitaciones-grpc` en 50051 y `reservas-bd` en 5432. PostgreSQL debe aparecer como `healthy`. La API debe completar su arranque. Después de modificar código, repetir el comando con `--build` para incorporarlo a los contenedores.
 
-* `reservas-bd` (PostgreSQL - Puerto 5432, estado *healthy*)
-* `reservas-api` (FastAPI - Puerto 80)
-* `habitaciones-grpc` (Servidor gRPC - Puerto 50051)
+Los datos se guardan en los volúmenes `reservas-db-data` y `habitaciones-data`. `docker compose down` detiene el sistema conservándolos; agregar `-v` los elimina.
 
----
 
-## 4. Tour Interactivo de Pruebas
+## Ejecucion
 
 Puedes probar todo el sistema paso a paso siguiendo esta guía:
 
-### Paso 1: Explorar el Servicio gRPC directamente
+### Preparar habitaciones
 
-El servicio de Habitaciones cuenta con un cliente administrativo de prueba en `habitaciones/admin_client.py`:
+El servicio inicia sin habitaciones en una base nueva. El cliente administrativo registra un catálogo de demostración a través de gRPC:
 
 ```bash
 # 1. Sembrar un catálogo de habitaciones de prueba vía gRPC:
@@ -100,23 +72,30 @@ python habitaciones/admin_client.py localhost:50051 listar
 python habitaciones/admin_client.py localhost:50051 crear 401 Penthouse 250000
 ```
 
----
-
-### Paso 2: Probar la API REST vía Swagger UI (Navegador)
-
-1. Abre en tu navegador: [http://localhost/docs](http://localhost/docs)
-2. Haz clic en el botón verde **Authorize** (arriba a la derecha).
-3. En el campo `X-API-Key`, ingresa:
-
-   ```text
-   hotel-secret-key-2026
-   ```
-
-4. Haz clic en **Authorize** y luego **Close**. Ahora puedes ejecutar cualquier endpoint directamente desde la interfaz web interactiva.
+El número de habitación es único. Volver a ejecutar la carga informa cuáles ya existen. Usar los IDs devueltos por el servicio, sin asumir que corresponden a los números de habitación.
 
 ---
 
-### Paso 3: Flujo Completo por Terminal (PowerShell / Bash)
+### API Rest
+
+Abrir [Swagger UI](http://localhost/docs), seleccionar **Authorize** e ingresar el valor de `API_KEY` configurado en `.env`. Todas las operaciones bajo `/v1` requieren la cabecera `X-API-Key`. La raíz `/` y la documentación son públicas. La raíz identifica la aplicación; no comprueba la salud de todas sus dependencias.
+
+| Método | Ruta | Operación |
+| --- | --- | --- |
+| POST / GET | `/v1/huespedes` | Crear / listar huéspedes |
+| GET | `/v1/huespedes/{huesped_id}` | Consultar un huésped |
+| POST / GET | `/v1/reservas` | Crear / listar reservas |
+| GET | `/v1/reservas/{reserva_id}` | Consultar una reserva |
+| DELETE | `/v1/reservas/{reserva_id}` | Cancelar una reserva y liberar su asignación |
+| POST | `/v1/reservas/{reserva_id}/resolver` | Resolver una operación pendiente o incierta |
+| GET | `/v1/disponibilidad` | Consultar habitaciones libres en un intervalo |
+
+El archivo `contracts/openapi.yaml` detalla respuestas y errores. Swagger UI y `/openapi.json` se generan a partir de las rutas de FastAPI; las ampliaciones descriptivas del YAML no se cargan automáticamente en Swagger. Al cambiar la API hay que revisar ambos contratos.
+
+
+---
+
+### Flujo Completo 
 
 #### A. Registrar un Huésped (`POST /v1/huespedes`)
 
@@ -163,70 +142,80 @@ Invoke-RestMethod -Uri "http://localhost/v1/reservas/1" -Method Delete -Headers 
 
 ---
 
-### Paso 4: Demostración del Modo de Falla (Requisito T7)
+### Fallos y Resoluciones
 
-Para evidenciar la resiliencia del sistema cuando la dependencia interna se cae:
+Con un huésped existente, detener Habitaciones:
 
-1. **Detén intencionalmente el servicio gRPC:**
+```bash
+docker compose stop habitaciones-grpc
+```
 
-   ```bash
-   docker compose stop habitaciones-grpc
-   ```
+Intentar crear una nueva reserva:
 
-2. **Intenta realizar una nueva reserva:**
+  ```powershell
+  $reserva_falla = @{
+      huesped_id = 1
+      fecha_inicio = "2026-12-01"
+      fecha_fin = "2026-12-05"
+  } | ConvertTo-Json
 
-   ```powershell
-   $reserva_falla = @{
-       huesped_id = 1
-       fecha_inicio = "2026-12-01"
-       fecha_fin = "2026-12-05"
-   } | ConvertTo-Json
+  try {
+      Invoke-RestMethod -Uri "http://localhost/v1/reservas" -Method Post -Headers $headers -ContentType "application/json" -Body $reserva_falla
+  } catch {
+      $_.ErrorDetails.Message
+  }
+  ```
 
-   try {
-       Invoke-RestMethod -Uri "http://localhost/v1/reservas" -Method Post -Headers $headers -ContentType "application/json" -Body $reserva_falla
-   } catch {
-       $_.ErrorDetails.Message
-   }
-   ```
+El cliente gRPC tiene un timeout de 2 segundos por llamada; una conexión rechazada puede fallar antes. Ante un fallo de comunicación, la API intenta marcar la reserva como `reparacion` y responde 503. Por ejemplo, para una reserva cuyo ID sea 42:
 
-   *Respuesta esperada:* **`HTTP 503 Service Unavailable`** con JSON explicativo:
+```json
+{
+  "error": {
+    "tipo": "ReservaIncierta",
+    "mensaje": "No se conoce el resultado de la reserva 42",
+    "reserva_id": 42
+  }
+}
+```
 
-   ```json
-   {
-     "detail": {
-       "error": "Service Unavailable",
-       "message": "El servicio de Habitaciones (gRPC) no responde. La solicitud no pudo confirmarse y se marcó para reparación.",
-       "reserva_id": 2
-     }
-   }
-   ```
 
-   *(La reserva no se pierde ni genera error 500 no controlado; queda en estado `reparacion` en PostgreSQL para posterior resolución).*
+Restaurar el servicio y ejecutar `POST /v1/reservas/{reserva_id}/resolver` con el ID recibido:
 
-3. **Restaura el servicio gRPC:**
+```bash
+docker compose start habitaciones-grpc
+```
 
-   ```bash
-   docker compose start habitaciones-grpc
-   ```
+```powershell
+Invoke-RestMethod -Uri "http://localhost/v1/reservas/2/resolver" -Method Post -Headers $headers
+  ```
 
-4. **Ejecutar la Cascada de Reconciliación y Compensación (`POST /v1/reservas/{id}/resolver`):**
+La resolución consulta la asignación remota y la libera si corresponde. Si la reserva local todavía no tiene `habitacion_id`, elimina el registro local, incluso si antes necesitó liberar una asignación remota. Si ya tiene `habitacion_id`, termina en estado `cancelada`. Una reserva confirmada produce 409; una ya cancelada se devuelve sin modificar. La resolución es manual: no existe un proceso automático que revise las reservas en reparación.
 
-   ```powershell
-   Invoke-RestMethod -Uri "http://localhost/v1/reservas/2/resolver" -Method Post -Headers $headers
-   ```
+Los errores de negocio usan `{"error":{"tipo":"...","mensaje":"..."}}`. La autenticación y el correo duplicado usan `{"detail":"..."}`; la validación de FastAPI usa `{"detail":[...]}`. El contrato describe estas diferencias.
 
-   *Respuesta esperada:* La cascada consulta por gRPC a Habitaciones (`ConsultarAsignacion`). Si la habitación nunca se asignó, elimina la reserva en PostgreSQL; si sí se asignó antes de la caída, ejecuta la acción compensatoria (`LiberarHabitacion`) y pasa el estado a `cancelada`.
+## Pruebas y estado de verificación
 
+Las pruebas disponibles son:
+
+- `reservas/test_mock_habitacion.py`: comportamiento del doble de prueba en memoria, con asignaciones, intervalos, liberación y fallos simulados. No verifica por sí solo el servicio gRPC real.
+- `reservas/test_e2e_cascadas.py`: pruebas contra la API en `localhost`. Requieren servicios activos y datos preparados. Actualmente contienen supuestos sobre IDs y una comprobación del formato de error que necesita actualizarse; no deben presentarse como evidencia de que todos los escenarios pasan.
+
+Para ejecutar las pruebas del mock en el entorno local:
+
+```bash
+python -m pip install pytest
+cd reservas
+python -m pytest test_mock_habitacion.py -q
+```
+
+Para trabajar en las pruebas E2E se necesita además `requests`. Su ejecución modifica datos del sistema de demostración. La experimentación medida se está desarrollando por separado; esta guía no presenta resultados experimentales ni atribuye mejoras de rendimiento sin mediciones.
 ---
 
-## 5. Declaración de Integridad y Uso de Asistentes de IA (Sección 6.3)
 
-En cumplimiento con los lineamientos de integridad académica del encargo:
+## Uso de IA
 
-* **Propósito del uso:**
-  1. Estructuración del contrato Protocol Buffers ([`habitaciones.proto`](contracts/habitaciones.proto)) y especificación OpenAPI.
-  2. Implementación de los stubs y resolución de dependencias de empaquetado para el servidor gRPC y el cliente FastAPI.
-  3. Verificación de casos de prueba unitarios para la lógica de intervalos semiabiertos e idempotencia.
-* **Verificación realizada por el equipo:**
-  * Cada línea de código generada fue revisada, ejecutada y validada mediante suites automatizadas de pruebas en pytest (`test_mock_habitacion.py`) y llamadas en vivo de integración (`test_cliente_grpc.py`).
-  * Se comprobó empíricamente la resiliencia y el comportamiento del modo de falla (T7) deteniendo y reanudando contenedores Docker en vivo.
+Se utilizaron GPT-6 Sol y GPT-6 Astra para generar propuestas de código a partir de las ideas y decisiones planteadas durante el desarrollo. En ese flujo, el código propuesto se revisó y se incorporó manualmente mediante copia y pegado, en lugar de delegar a un agente la implementación automática del proyecto.
+
+También se utilizó asistencia de IA para revisar el proyecto y actualizar este README y el contrato OpenAPI. Esta revisión documental debe distinguirse del flujo manual usado para incorporar código.
+
+Las verificaciones realizadas incluyen la revisión del código frente a los requisitos, la comprobación del arranque y acceso de la API a PostgreSQL, y pruebas aisladas del comportamiento del endpoint de resolución. Parte de esta comprobación se realizó con asistencia de IA. No se afirma que cada línea haya sido validada ni que toda la suite E2E haya pasado. Las pruebas disponibles y sus límites se describen en la sección anterior.
