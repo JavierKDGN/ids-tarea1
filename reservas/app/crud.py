@@ -59,8 +59,10 @@ class ReservaCRUD:
         return ReservaResponse.model_validate(reserva)
 
     def create_reserva(self, reserva: ReservaCreate):
+        datos = reserva.model_dump()
+        datos.pop("habitacion_id", None)
         new_reserva = Reserva(
-            **reserva.model_dump(),
+            **datos,
             estado=EstadoReserva.PENDIENTE,
             habitacion_id=None
         )

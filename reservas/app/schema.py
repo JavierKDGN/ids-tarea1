@@ -18,6 +18,7 @@ class ReservaBase(BaseModel):
     fecha_inicio: date
     fecha_fin: date
     huesped_id: int
+    habitacion_id: int | None = None
 
 class ReservaCreate(ReservaBase):
     pass

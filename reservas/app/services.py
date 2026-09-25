@@ -42,6 +42,7 @@ def crear_reserva(
             pendiente.id,
             datos.fecha_inicio,
             datos.fecha_fin,
+            habitacion_id=getattr(datos, "habitacion_id", None),
         )
     except (TimeoutError, ConnectionError) as exc:
         _marcar_reparacion(db, pendiente.id)
