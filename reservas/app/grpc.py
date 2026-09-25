@@ -2,8 +2,8 @@ from datetime import date
 from threading import Lock
 from enum import Enum
 
-class __TiempoFallo(Enum):
-    ANTES = "antes", # pre asignacion
+class _TiempoFallo(Enum):
+    ANTES = "antes" # pre asignacion
     DESPUES = "despues" # post asignacion
 
 class MockHabitacion:
@@ -15,9 +15,9 @@ class MockHabitacion:
         self._cerradas: set[int] = set()
         self._lock = Lock()
 
-        self._fallo_reserva: __TiempoFallo | None = None
-        self._fallo_liberacion: __TiempoFallo | None = None
-        self._fallo_consulta: __TiempoFallo | None = None
+        self._fallo_reserva: _TiempoFallo | None = None
+        self._fallo_liberacion: _TiempoFallo | None = None
+        self._fallo_consulta: _TiempoFallo | None = None
 
     def _hay_solapamiento_fechas(self, inicio: date, fin: date) -> bool:
         for i, f in self._asignaciones.values():
@@ -40,7 +40,7 @@ class MockHabitacion:
             raise ValueError("La salida debe ser despues de la entrada")
         with self._lock:
             # habitacion no respodne
-            if self._fallo_reserva == __TiempoFallo.ANTES:
+            if self._fallo_reserva == _TiempoFallo.ANTES:
                 self._fallo_reserva = None
                 raise TimeoutError("Habitaciones no respondio antes de asignar")
 
@@ -64,7 +64,7 @@ class MockHabitacion:
             # asignamos la habitacion a la reserva
             self._asignaciones[reserva_id] = (inicio, fin)
 
-            if self._fallo_reserva == __TiempoFallo.DESPUES:
+            if self._fallo_reserva == _TiempoFallo.DESPUES:
                 self._fallo_reserva = None
                 raise TimeoutError(
                     "Habitacion asignada pero no hay respuesta"
@@ -75,14 +75,14 @@ class MockHabitacion:
     def liberar(self, reserva_id: int) -> bool:
         """Libera esta reserva"""
         with self._lock:
-            if self._fallo_liberacion == "antes":
+            if self._fallo_liberacion == _TiempoFallo.ANTES:
                 self._fallo_liberacion = None
                 raise TimeoutError("Habitacion no respondio antes de liberar")
 
             self._asignaciones.pop(reserva_id, None)
             self._cerradas.add(reserva_id)
 
-            if self._fallo_liberacion == __TiempoFallo.DESPUES:
+            if self._fallo_liberacion == _TiempoFallo.DESPUES:
                 self._fallo_liberacion = None
                 raise TimeoutError(
                     "Habitaciones liberadas, pero se perdio la respuesta"
@@ -103,13 +103,13 @@ class MockHabitacion:
     def simular_timeout_reserva(self, despues_de_asignar: bool = False) -> None:
         with self._lock:
             self._fallo_reserva = (
-                __TiempoFallo.DESPUES if despues_de_asignar else __TiempoFallo.ANTES
+                _TiempoFallo.DESPUES if despues_de_asignar else _TiempoFallo.ANTES
             )
 
     def simular_timeout_liberacion(self, despues_de_liberar: bool = False) -> None:
         with self._lock:
             self._fallo_liberacion = (
-                __TiempoFallo.DESPUES if despues_de_liberar else __TiempoFallo.ANTES
+                _TiempoFallo.DESPUES if despues_de_liberar else _TiempoFallo.ANTES
             )
 
     def simular_timeout_consulta(self) -> None:

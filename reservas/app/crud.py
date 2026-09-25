@@ -1,6 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from datetime import date
 
 from .models import Huesped, Reserva, EstadoReserva
@@ -48,21 +48,24 @@ class ReservaCRUD:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_reserva(self, reserva: ReservaCreate, estado: EstadoReserva = EstadoReserva.PENDIENTE, habitacion_id: int | None = None):
+    def _guardar(self, reserva: Reserva) -> ReservaResponse:
+        try:
+            self.db.commit()
+            self.db.refresh(reserva)
+        except SQLAlchemyError:
+            self.db.rollback()
+            raise
+
+        return ReservaResponse.model_validate(reserva)
+
+    def create_reserva(self, reserva: ReservaCreate):
         new_reserva = Reserva(
             **reserva.model_dump(),
-            estado=estado,
-            habitacion_id=habitacion_id
+            estado=EstadoReserva.PENDIENTE,
+            habitacion_id=None
         )
-        try:
-            self.db.add(new_reserva)
-            self.db.commit()
-            self.db.refresh(new_reserva)
-            return ReservaResponse.model_validate(new_reserva)
-
-        except IntegrityError:
-            self.db.rollback()
-            return None     
+        self.db.add(new_reserva)
+        return self._guardar(new_reserva)
 
     def get_reserva_by_id(self, reserva_id: int) -> Reserva | None:
         return self.db.get(Reserva, reserva_id)
@@ -71,19 +74,31 @@ class ReservaCRUD:
         reservas = select(Reserva)
         return self.db.scalars(reservas).all()
 
-    def delete_reserva_by_id(self, reserva_id: int):
+    def confirmar_reserva(self, reserva_id: int, habitacion_id: int) -> ReservaResponse | None:
         reserva = self.get_reserva_by_id(reserva_id)
-        if reserva:
+        if reserva is None:
+            return None
+
+        reserva.habitacion_id = habitacion_id
+        reserva.estado = EstadoReserva.CONFIRMADA
+        return self._guardar(reserva)
+
+    def cambiar_estado_reserva(self, reserva_id: int, nuevo_estado: EstadoReserva) -> ReservaResponse | None:
+        reserva = self.get_reserva_by_id(reserva_id)
+        if reserva is None:
+            return None
+
+        reserva.estado = nuevo_estado
+        return self._guardar(reserva)
+        
+    def delete_reserva_by_id(self, reserva_id: int) -> bool:
+        reserva = self.get_reserva_by_id(reserva_id)
+        if reserva is None:
+            return False
+        try:
             self.db.delete(reserva)
             self.db.commit()
-            return True
-        return False
-
-    def cambiar_estado_reserva(self, reserva_id: int, nuevo_estado: EstadoReserva):
-        reserva = self.get_reserva_by_id(reserva_id)
-        if reserva:
-            reserva.estado = nuevo_estado
-            self.db.commit()
-            self.db.refresh(reserva)
-            return ReservaResponse.model_validate(reserva)
-        return None
+        except SQLAlchemyError:
+            self.db.rollback()
+            raise
+        return True

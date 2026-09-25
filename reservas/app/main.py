@@ -9,6 +9,8 @@ except Exception as e:
 
 app = FastAPI()
 
+@app.get("")
+
 
 @app.get("/")
 def read_root():
