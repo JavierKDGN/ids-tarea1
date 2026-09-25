@@ -127,7 +127,6 @@ def cancelar_reserva(
 
     return cancelada
 
-
 def resolver_reserva(
     db: Session,
     reserva_id: int,
@@ -139,10 +138,10 @@ def resolver_reserva(
     if reserva is None:
         raise ReservaNoExiste(reserva_id)
 
-    if reserva.estado in (
-        EstadoReserva.CONFIRMADA,
-        EstadoReserva.CANCELADA,
-    ):
+    if reserva.estado == EstadoReserva.CONFIRMADA:
+        raise EstadoInvalido("La reserva ya esta confirmada")
+
+    if reserva.estado == EstadoReserva.CANCELADA:
         return ReservaResponse.model_validate(reserva)
 
     try:
