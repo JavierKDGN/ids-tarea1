@@ -20,7 +20,8 @@ services:
     build: ./reservas
     container_name: reservas-api
     environment:
-      - RESERVAS_DB_URL=${RESERVAS_DB_URL}
+      - RESERVAS_DB_URL=postgresql+psycopg://${RESERVAS_DB_USER}:${RESERVAS_DB_PASSWORD}@reservas-bd:5432/${RESERVAS_DB_NAME}
+      - RESERVAS_API_KEY=${RESERVAS_API_KEY}
       - HABITACIONES_GRPC_TARGET=habitaciones-grpc:50051
     ports:
       - "8000:80"
